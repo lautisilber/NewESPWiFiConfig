@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        * {
+            font-family: Helvetica, Arial, sans-serif;
+        }
+
+        :root {
+            --color-dark: #425F57;
+            --color-main: #749F82;
+            --color-accent: #c2e7c2;
+        }
+
+        .grid-container {
+            display: inline-grid;
+            grid-template-columns: auto;
+            margin-left: auto;
+            margin-right: auto;
+            border: 2px solid var(--color-dark);
+            border-radius: 3px;
+        }
+
+        .scan-row {
+            display: inline-grid;
+            background-color: var(--color-accent);
+            grid-template-columns: auto auto auto;
+            transition: .15s;
+        }
+
+        .grid-single {
+            padding: 10px 0;
+            justify-content: center;
+        }
+
+        .scan-non-header:hover {
+            filter: brightness(.94);
+        }
+
+        .scan-non-header:active {
+            filter: brightness(.87);
+        }
+
+        .scan-item {
+            padding: 10px;
+        }
+
+        .scan-header {
+            font-size: large;
+            font-weight: bold;
+            padding: 10px 10px;
+            border-bottom: 3px solid var(--color-dark);
+        }
+
+        .reload {
+            font-family: Lucida Sans Unicode;
+            margin-left: .7em;
+            padding: 0 .35em;
+            transition: .15s;
+        }
+
+        .title {
+            margin-left: auto;
+            margin-right: auto;
+            width: 9rem;
+        }
+
+
+        .params-wifi {
+            display: inline-grid;
+            background-color: var(--color-accent);
+            grid-template-columns: auto auto auto;
+            border-radius: 4px;
+        }
+
+        .link-btn {
+            text-decoration: none;
+            padding: 0.5rem 0.5rem;
+            background-color: var(--color-accent);
+            border-radius: 4px;
+            transition: 0.15s;
+            border-width: 0;
+            font-weight: bold;
+        }
+
+        .link-btn:hover {
+            filter: brightness(.94);
+        }
+
+        .link-btn:active {
+            filter: brightness(.87);
+        }
+
+        .main {
+            width: fit-content;            
+            background-color: var(--color-main);
+            padding: 0.5rem 1rem;
+            padding-bottom: 1rem;
+            border-radius: 5px;
+            margin: 1rem;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .grid-header {
+            font-size: large;
+            font-weight: bold;
+            padding: 10px 10px;
+            border-bottom: 3px solid var(--color-dark);
+        }
+
+        .grid-elem {
+            padding: 10px;
+        }
+
+        .link-btn {
+            text-decoration: none;
+            padding: 0.5rem 0.5rem;
+            background-color: var(--color-accent);
+            border-radius: 4px;
+            transition: 0.15s;
+        }
+
+        .link-btn:hover {
+            filter: brightness(.94);
+        }
+
+        .link-btn:active {
+            filter: brightness(.87);
+        }
+
+        body {
+            background-color: var(--color-dark);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="main">
+        <h2 class="title">WiFi Config</h2>
+
+        <div id="scan-div" class="grid-container">
+            <div class="scan-row grid-single">
+                <div class="scan-header">ssid</div>
+                <div class="scan-header">pasword</div>
+                <div class="scan-header">strength<button id="reload" class="reload"
+                        onclick="refreshScan()">&#x21bb;</button></div>
+            </div>
+            <div class="scan-row grid-single">
+                loading
+            </div>
+        </div>
+
+        <br><br>
+        <div id="nets" class="params-wifi">
+            <div class="grid-header">Number</div>
+            <div class="grid-header">SSID</div>
+            <div class="grid-header">Password</div>
+
+            <div class="grid-elem"><label for="ssid1">net 1</label></div>
+            <div class="grid-elem" ssid><input type="text" name="ssid1"></div>
+            <div class="grid-elem" pswd><input type="text" name="pswd1"></div>
+            <div class="grid-elem"><label for="text">net 2</label></div>
+            <div class="grid-elem" ssid><input type="text" name="ssid2"></div>
+            <div class="grid-elem" pswd><input type="text" name="pswd2"></div>
+        </div>
+
+        <br><br>
+        <button class="link-btn" id="submit">Set</button>
+    </div>
+
+    <script>
+        Number.prototype.map = function (in_min, in_max, out_min, out_max) {
+            return (this - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+        }
+        Number.prototype.clamp = function (min, max) {
+            return Math.min(Math.max(this, min), max);
+        }
+
+        function header(btnState = true) {
+            return `<div class="scan-row"><div class="scan-header">ssid</div>
+<div class="scan-header">pasword</div>
+<div class="scan-header">strength<button id="reload" class="reload" onclick="refreshScan()"${btnState ? '' : ' disabled'}>&#x21bb;</button></div></div>`;
+        }
+        let scanComplete = false;
+
+        function rssiPer(rssi) {
+            let rssiMin = -100;
+            let rssiMax = -50;
+
+            return `${rssi.clamp(rssiMin, rssiMax).map(rssiMin, rssiMax, 0, 100)} %`;
+        }
+
+        function emptyScanTable() {
+            document.getElementById('scan-div').innerHTML = header() + '<div class="scan-row grid-single"><i>loading...</i></div>';
+        }
+
+        function fillScanTable(data) {
+            const btnState = !document.getElementById("reload").disabled;
+            let div = document.getElementById('scan-div');
+            div.innerHTML = header(btnState);
+            for (let i = 0; i < data.length; i++) {
+                let e = data[i];
+                div.innerHTML += `<div class="scan-row scan-non-header" onclick="buttonClick(event)">
+<div class="scan-item" scan-ssid>${e.ssid}</div>
+<div class="scan-item"><input type="checkbox" onclick="event.preventDefault()"${(e.secure == 7 ? '' : ' checked')}></div>
+<div class="scan-item">${rssiPer(e.rssi)}</div>
+</div>`;
+            }
+        }
+
+        function success(data) {
+            if (data.length) {
+                scanComplete = true;
+                fillScanTable(data);
+            }
+            else
+                emptyScanTable();
+            console.log(data);
+        }
+
+        function httpGetAsync(theUrl, cb) {
+            var xmlHttp = new XMLHttpRequest();
+            xmlHttp.onreadystatechange = function () {
+                if (xmlHttp.readyState == 4 && xmlHttp.status == 200)
+                    cb(xmlHttp.responseText);
+            }
+            xmlHttp.open("GET", theUrl, true);
+            xmlHttp.send(null);
+        }
+
+        function httpPostAsync(theUrl, data) {
+            var xmlHttp = new XMLHttpRequest();
+            xmlHttp.open('POST', theUrl);
+            xmlhttp.setRequestHeader("Content-Type", "application/json");
+            xmlhttp.send(/*'json_name='+*/JSON.stringify(data));
+        }
+
+        const scanURL = '/wifiscan'
+
+        //httpGetAsync(scanURL, success);
+        //setTimeout(function () { httpGetAsync(scanURL, success); }, 5000);
+        function refreshScan() {
+            document.getElementById("reload").disabled = true;
+            setTimeout(function () { document.getElementById("reload").disabled = false }, 3000);
+
+            const test = [
+                { 'ssid': 'a', 'secure': 2, 'rssi': -60 },
+                { 'ssid': 'b', 'secure': 2, 'rssi': -69 },
+                { 'ssid': 'c', 'secure': 7, 'rssi': -74 },
+                { 'ssid': 'd', 'secure': 2, 'rssi': -90 },
+            ]
+
+
+
+            fillScanTable(data);
+        }
+
+        function buttonClick(evt) {
+            const elem = evt.currentTarget;
+            const ssid = [...elem.children].find((e) => e.hasAttribute('scan-ssid')).textContent;
+            [...document.getElementById("nets").children].find((e) => e.hasAttribute('ssid')).firstChild.value = ssid;
+        }
+
+
+
+        document.getElementById('submit').addEventListener('click', function () {
+            const ssids = [...document.querySelectorAll('[ssid]')];
+            const pswds = [...document.querySelectorAll('[pswd]')];
+            let data = [];
+            for (let i = 0; i < ssids.length; i++) {
+                data.push({
+                    ssid: ssids[i].firstChild.value,
+                    pswd: pswds[i].firstChild.value,
+                });
+            }
+
+            console.log('send', data);
+        });
+
+
+
+
+        emptyScanTable();
+    </script>
+</body>
+
+</html>
